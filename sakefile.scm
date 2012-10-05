@@ -2,7 +2,7 @@
 (%include sake: utils#)
 
 (define modules '(srfi-1
-                  srfi-2
+                  ;srfi-2
                   ;srfi-5
                   ;srfi-11
                   ;srfi-13
@@ -33,13 +33,15 @@
   (sake:default-clean))
 
 (define-task compile ()
-  (for-each (lambda (m)
-              (sake:compile-c-file (sake:generate-c-file m))
-              (sake:compile-c-file (sake:generate-c-file
-                                    m
-                                    version: '(debug)
-                                    compiler-options: '(debug))))
-            modules))
+  (sake:parallel-for-each
+   (lambda (m)
+     (sake:compile-c-file (sake:generate-c-file m))
+     (sake:compile-c-file (sake:generate-c-file
+                           m
+                           version: '(debug)
+                           compiler-options: '(debug))))
+   modules
+   max-thread-number: 8))
 
 (define-task install ()
   (for-each (lambda (m)
