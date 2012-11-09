@@ -1,6 +1,3 @@
-(include "~~spheres/prelude#.scm")
-(%include sake: utils#)
-
 (define modules '(srfi-1
                   ;srfi-2
                   ;srfi-5
