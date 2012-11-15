@@ -1,3 +1,9 @@
+(declare (fixnum) (not safe))
+
+;;; This is the reference implementation (which I don't like very much)
+;;; simply adapted to Gambit-C.  I'm not spending a lot of time on
+;;; it to make it perfect.
+
 ;;; SRFI-1 list-processing library 			-*- Scheme -*-
 ;;; Reference implementation
 ;;;
@@ -17,25 +23,25 @@
 ;;; for SRFI-1. See the porting notes below for more information.
 
 ;;; Exported:
-;;; xcons tree-copy make-list list-tabulate cons* list-copy 
+;;; xcons tree-copy make-list list-tabulate cons* list-copy
 ;;; proper-list? circular-list? dotted-list? not-pair? null-list? list=
 ;;; circular-list length+
 ;;; iota
 ;;; first second third fourth fifth sixth seventh eighth ninth tenth
 ;;; car+cdr
-;;; take       drop       
-;;; take-right drop-right 
+;;; take       drop
+;;; take-right drop-right
 ;;; take!      drop-right!
 ;;; split-at   split-at!
 ;;; last last-pair
 ;;; zip unzip1 unzip2 unzip3 unzip4 unzip5
 ;;; count
-;;; append! append-reverse append-reverse! concatenate concatenate! 
+;;; append! append-reverse append-reverse! concatenate concatenate!
 ;;; unfold       fold       pair-fold       reduce
 ;;; unfold-right fold-right pair-fold-right reduce-right
 ;;; append-map append-map! map! pair-for-each filter-map map-in-order
 ;;; filter  partition  remove
-;;; filter! partition! remove! 
+;;; filter! partition! remove!
 ;;; find find-tail any every list-index
 ;;; take-while drop-while take-while!
 ;;; span break span! break!
@@ -43,11 +49,11 @@
 ;;; alist-cons alist-copy
 ;;; delete-duplicates delete-duplicates!
 ;;; alist-delete alist-delete!
-;;; reverse! 
-;;; lset<= lset= lset-adjoin  
+;;; reverse!
+;;; lset<= lset= lset-adjoin
 ;;; lset-union  lset-intersection  lset-difference  lset-xor  lset-diff+intersection
 ;;; lset-union! lset-intersection! lset-difference! lset-xor! lset-diff+intersection!
-;;; 
+;;;
 ;;; In principle, the following R4RS list- and pair-processing procedures
 ;;; are also part of this package's exports, although they are not defined
 ;;; in this file:
@@ -60,7 +66,7 @@
 ;;; in this file:
 ;;;   map for-each member assoc
 ;;;
-;;; The remaining two R4RS list-processing procedures are not included: 
+;;; The remaining two R4RS list-processing procedures are not included:
 ;;;   list-tail (use drop)
 ;;;   list? (use proper-list?)
 
@@ -70,7 +76,7 @@
 ;;; of the answer list in the wrong order (left-to-right or head-to-tail) from
 ;;; the order needed to cons them into the proper answer (right-to-left, or
 ;;; tail-then-head). One style or idiom of programming these algorithms, then,
-;;; loops, consing up the elements in reverse order, then destructively 
+;;; loops, consing up the elements in reverse order, then destructively
 ;;; reverses the list at the end of the loop. I do not do this. The natural
 ;;; and efficient way to code these algorithms is recursively. This trades off
 ;;; intermediate temporary list structure for intermediate temporary stack
@@ -83,16 +89,16 @@
 ;;; This is carefully tuned code; do not modify casually.
 ;;;   - It is careful to share storage when possible;
 ;;;   - Side-effecting code tries not to perform redundant writes.
-;;; 
+;;;
 ;;; That said, a port of this library to a specific Scheme system might wish
-;;; to tune this code to exploit particulars of the implementation. 
+;;; to tune this code to exploit particulars of the implementation.
 ;;; The single most important compiler-specific optimisation you could make
 ;;; to this library would be to add rewrite rules or transforms to:
 ;;; - transform applications of n-ary procedures (e.g. LIST=, CONS*, APPEND,
-;;;   LSET-UNION) into multiple applications of a primitive two-argument 
+;;;   LSET-UNION) into multiple applications of a primitive two-argument
 ;;;   variant.
-;;; - transform applications of the mapping functions (MAP, FOR-EACH, FOLD, 
-;;;   ANY, EVERY) into open-coded loops. The killer here is that these 
+;;; - transform applications of the mapping functions (MAP, FOR-EACH, FOLD,
+;;;   ANY, EVERY) into open-coded loops. The killer here is that these
 ;;;   functions are n-ary. Handling the general case is quite inefficient,
 ;;;   requiring many intermediate data structures to be allocated and
 ;;;   discarded.
@@ -114,13 +120,13 @@
 ;;;
 ;;; Note that this code is, of course, dependent upon standard bindings for
 ;;; the R5RS procedures -- i.e., it assumes that the variable CAR is bound
-;;; to the procedure that takes the car of a list. If your Scheme 
+;;; to the procedure that takes the car of a list. If your Scheme
 ;;; implementation allows user code to alter the bindings of these procedures
 ;;; in a manner that would be visible to these definitions, then there might
 ;;; be trouble. You could consider horrible kludgery along the lines of
-;;;    (define fact 
+;;;    (define fact
 ;;;      (let ((= =) (- -) (* *))
-;;;        (letrec ((real-fact (lambda (n) 
+;;;        (letrec ((real-fact (lambda (n)
 ;;;                              (if (= n 0) 1 (* n (real-fact (- n 1)))))))
 ;;;          real-fact)))
 ;;; Or you could consider shifting to a reasonable Scheme system that, say,
@@ -130,18 +136,18 @@
 ;;; Scheme system has a sophisticated compiler that can eliminate redundant
 ;;; error checks, this is no problem. However, if not, these checks incur
 ;;; some performance overhead -- and, in a safe Scheme implementation, they
-;;; are in some sense redundant: if we don't check to see that the PROC 
+;;; are in some sense redundant: if we don't check to see that the PROC
 ;;; parameter is a procedure, we'll find out anyway three lines later when
-;;; we try to call the value. It's pretty easy to rip all this argument 
+;;; we try to call the value. It's pretty easy to rip all this argument
 ;;; checking code out if it's inappropriate for your implementation -- just
 ;;; nuke every call to CHECK-ARG.
 ;;;
 ;;; On the other hand, if you *do* have a sophisticated compiler that will
 ;;; actually perform soft-typing and eliminate redundant checks (Rice's systems
-;;; being the only possible candidate of which I'm aware), leaving these checks 
+;;; being the only possible candidate of which I'm aware), leaving these checks
 ;;; in can *help*, since their presence can be elided in redundant cases,
 ;;; and in cases where they are needed, performing the checks early, at
-;;; procedure entry, can "lift" a check out of a loop. 
+;;; procedure entry, can "lift" a check out of a loop.
 ;;;
 ;;; Finally, I have only checked the properties that can portably be checked
 ;;; with R5RS Scheme -- and this is not complete. You may wish to alter
@@ -153,11 +159,23 @@
 ;;;   Uses of the R5RS multiple-value procedure VALUES and the m-v binding
 ;;;     RECEIVE macro (which isn't R5RS, but is a trivial macro).
 ;;;   Many calls to a parameter-checking procedure check-arg:
-(define (check-arg pred val caller)
-  (let lp ((val val))
-    (if (pred val) val (lp (error "Bad argument" val pred caller)))))
+;;;    (define (check-arg pred val caller)
+;;;      (let lp ((val val))
+;;;        (if (pred val) val (lp (error "Bad argument" val pred caller)))))
 ;;;   A few uses of the LET-OPTIONAL and :OPTIONAL macros for parsing
 ;;;     optional arguments.
+
+(define-macro (receive args expr . body)
+  `(call-with-values (lambda () ,expr) (lambda ,args ,@body)))
+
+(define-macro (check-arg pred val caller)
+  `(let ((pred ,pred)
+	 (val ,val)
+	 (caller ',caller))
+     (if (pred val)
+	 val
+	 (error "Bad argument" val pred caller))))
+
 ;;;
 ;;; Most of these procedures use the NULL-LIST? test to trigger the
 ;;; base case in the inner loop or recursion. The NULL-LIST? function
@@ -197,7 +215,7 @@
 ;;; the definition and implementation of this library.
 ;;;
 ;;; The argument *against* defining these procedures to work on dotted
-;;; lists is that dotted lists are the rare, odd case, and that by 
+;;; lists is that dotted lists are the rare, odd case, and that by
 ;;; arranging for the procedures to handle them, we lose error checking
 ;;; in the cases where a dotted list is passed by accident -- e.g., when
 ;;; the programmer swaps a two arguments to a list-processing function,
@@ -224,15 +242,11 @@
 
 ;;; Make a list of length LEN.
 
-(define (make-list len . maybe-elt)
+(define (make-list len #!optional (elt #f))
   (check-arg (lambda (n) (and (integer? n) (>= n 0))) len make-list)
-  (let ((elt (cond ((null? maybe-elt) #f) ; Default value
-		   ((null? (cdr maybe-elt)) (car maybe-elt))
-		   (else (error "Too many arguments to MAKE-LIST"
-				(cons len maybe-elt))))))
-    (do ((i len (- i 1))
-	 (ans '() (cons elt ans)))
-	((<= i 0) ans))))
+  (do ((i len (- i 1))
+       (ans '() (cons elt ans)))
+      ((<= i 0) ans)))
 
 
 ;(define (list . ans) ans)	; R4RS
@@ -260,26 +274,25 @@
 
 ;;; (unfold not-pair? car cdr lis values)
 
-(define (list-copy lis)				
-  (let recur ((lis lis))			
-    (if (pair? lis)				
-	(cons (car lis) (recur (cdr lis)))	
-	lis)))					
+(define (list-copy lis)
+  (let recur ((lis lis))
+    (if (pair? lis)
+	(cons (car lis) (recur (cdr lis)))
+	lis)))
 
 ;;; IOTA count [start step]	(start start+step ... start+(count-1)*step)
 
-(define (iota count . maybe-start+step)
+(define (iota count #!optional (start 0) (step 1))
   (check-arg integer? count iota)
   (if (< count 0) (error "Negative step count" iota count))
-  (let-optionals maybe-start+step ((start 0) (step 1))
-    (check-arg number? start iota)
-    (check-arg number? step iota)
-    (let ((last-val (+ start (* (- count 1) step))))
-      (do ((count count (- count 1))
-	   (val last-val (- val step))
-	   (ans '() (cons val ans)))
-	  ((<= count 0)  ans)))))
-	  
+  (check-arg number? start iota)
+  (check-arg number? step iota)
+  (let ((last-val (+ start (* (- count 1) step))))
+    (do ((count count (- count 1))
+	 (val last-val (- val step))
+	 (ans '() (cons val ans)))
+	((<= count 0)  ans))))
+
 ;;; I thought these were lovely, but the public at large did not share my
 ;;; enthusiasm...
 ;;; :IOTA to		(0 ... to-1)
@@ -385,7 +398,7 @@
   (cond ((pair? l) #f)
 	((null? l) #t)
 	(else (error "null-list?: argument out of domain" l))))
-           
+
 
 (define (list= = . lists)
   (or (null? lists) ; special case
@@ -403,7 +416,7 @@
 			(and (not (null-list? list-b))
 			     (= (car list-a) (car list-b))
 			     (lp2 (cdr list-a) (cdr list-b)))))))))))
-			
+
 
 
 ;;; R4RS, so commented out.
@@ -498,7 +511,7 @@
       (begin (set-cdr! (drop lis (- k 1)) '())
 	     lis)))
 
-;;; TAKE-RIGHT and DROP-RIGHT work by getting two pointers into the list, 
+;;; TAKE-RIGHT and DROP-RIGHT work by getting two pointers into the list,
 ;;; off by K, then chasing down the list until the lead pointer falls off
 ;;; the end.
 
@@ -533,7 +546,7 @@
 
 ;(define (list-ref lis i) (car (drop lis i)))	; R4RS
 
-;;; These use the APL convention, whereby negative indices mean 
+;;; These use the APL convention, whereby negative indices mean
 ;;; "from the right." I liked them, but they didn't win over the
 ;;; SRFI reviewers.
 ;;; K >= 0: Take and drop  K elts from the front of the list.
@@ -706,7 +719,7 @@
 ;;; These little internal utilities are used by the general
 ;;; fold & mapper funs for the n-ary cases . It'd be nice if they got inlined.
 ;;; One the other hand, the n-ary cases are painfully inefficient as it is.
-;;; An aggressive implementation should simply re-write these functions 
+;;; An aggressive implementation should simply re-write these functions
 ;;; for raw efficiency; I have written them for as much clarity, portability,
 ;;; and simplicity as can be achieved.
 ;;;
@@ -719,7 +732,7 @@
 ;;; the needs of the fold/map procs -- for example, to minimize the number
 ;;; of times the argument lists need to be examined.
 
-;;; Return (map cdr lists). 
+;;; Return (map cdr lists).
 ;;; However, if any element of LISTS is empty, just abort and return '().
 (define (%cdrs lists)
   (call-with-current-continuation
@@ -799,34 +812,30 @@
 ;;; fold/unfold
 ;;;;;;;;;;;;;;;
 
-(define (unfold-right p f g seed . maybe-tail)
+(define (unfold-right p f g seed #!optional (tail '()))
   (check-arg procedure? p unfold-right)
   (check-arg procedure? f unfold-right)
   (check-arg procedure? g unfold-right)
-  (let lp ((seed seed) (ans (:optional maybe-tail '())))
+  (let lp ((seed seed) (ans tail))
     (if (p seed) ans
 	(lp (g seed)
 	    (cons (f seed) ans)))))
 
 
-(define (unfold p f g seed . maybe-tail-gen)
+(define (unfold p f g seed #!optional (tail-gen #f))
   (check-arg procedure? p unfold)
   (check-arg procedure? f unfold)
   (check-arg procedure? g unfold)
-  (if (pair? maybe-tail-gen)
+  (if tail-gen
 
-      (let ((tail-gen (car maybe-tail-gen)))
-	(if (pair? (cdr maybe-tail-gen))
-	    (apply error "Too many arguments" unfold p f g seed maybe-tail-gen)
-
-	    (let recur ((seed seed))
-	      (if (p seed) (tail-gen seed)
-		  (cons (f seed) (recur (g seed)))))))
+      (let recur ((seed seed))
+	(if (p seed) (tail-gen seed)
+	    (cons (f seed) (recur (g seed)))))
 
       (let recur ((seed seed))
 	(if (p seed) '()
 	    (cons (f seed) (recur (g seed)))))))
-      
+
 
 (define (fold kons knil lis1 . lists)
   (check-arg procedure? kons fold)
@@ -835,7 +844,7 @@
 	(receive (cars+ans cdrs) (%cars+cdrs+ lists ans)
 	  (if (null? cars+ans) ans ; Done.
 	      (lp cdrs (apply kons cars+ans)))))
-	    
+
       (let lp ((lis lis1) (ans knil))			; Fast path
 	(if (null-list? lis) ans
 	    (lp (cdr lis) (kons (car lis) ans))))))
@@ -878,7 +887,7 @@
 	(if (null-list? lis) ans
 	    (let ((tail (cdr lis)))		; Grab the cdr now,
 	      (lp tail (f lis ans)))))))	; in case F SET-CDR!s LIS.
-      
+
 
 ;;; REDUCE and REDUCE-RIGHT only use RIDENTITY in the empty-list case.
 ;;; These cannot meaningfully be n-ary.
@@ -903,7 +912,7 @@
 
 (define (append-map f lis1 . lists)
   (really-append-map append-map  append  f lis1 lists))
-(define (append-map! f lis1 . lists) 
+(define (append-map! f lis1 . lists)
   (really-append-map append-map! append! f lis1 lists))
 
 (define (really-append-map who appender f lis1 lists)
@@ -967,7 +976,7 @@
 	      (cond ((apply f cars) => (lambda (x) (cons x (recur cdrs))))
 		    (else (recur cdrs))) ; Tail call in this arm.
 	      '())))
-	    
+
       ;; Fast path.
       (let recur ((lis lis1))
 	(if (null-list? lis) lis
@@ -989,7 +998,7 @@
 	      (let ((x (apply f cars)))		; Do head first,
 		(cons x (recur cdrs)))		; then tail.
 	      '())))
-	    
+
       ;; Fast path.
       (let recur ((lis lis1))
 	(if (null-list? lis) lis
@@ -999,7 +1008,10 @@
 
 
 ;;; We extend MAP to handle arguments of unequal length.
-(define map map-in-order)	
+
+;;; Lucier: We don't extend map to handle arguemnts of unequal length.
+
+;;(define map map-in-order)
 
 
 ;;; filter, remove, partition
@@ -1012,7 +1024,7 @@
 
 (define (filter pred lis)			; Sleazing with EQ? makes this
   (check-arg procedure? pred filter)		; one faster.
-  (let recur ((lis lis))		
+  (let recur ((lis lis))
     (if (null-list? lis) lis			; Use NOT-PAIR? to handle dotted lists.
 	(let ((head (car lis))
 	      (tail (cdr lis)))
@@ -1049,18 +1061,18 @@
 ;    (if (pair? lis)				; push N stack frames & do N
 ;        (cond ((pred (car lis))		; SET-CDR! writes, where N is
 ;               (set-cdr! lis (recur (cdr lis))); the length of the answer.
-;               lis)				
+;               lis)
 ;              (else (recur (cdr lis))))
 ;        lis)))
 
 
 ;;; This implementation of FILTER!
 ;;; - doesn't cons, and uses no stack;
-;;; - is careful not to do redundant SET-CDR! writes, as writes to memory are 
-;;;   usually expensive on modern machines, and can be extremely expensive on 
+;;; - is careful not to do redundant SET-CDR! writes, as writes to memory are
+;;;   usually expensive on modern machines, and can be extremely expensive on
 ;;;   modern Schemes (e.g., ones that have generational GC's).
-;;; It just zips down contiguous runs of in and out elts in LIS doing the 
-;;; minimal number of SET-CDR!s to splice the tail of one run of ins to the 
+;;; It just zips down contiguous runs of in and out elts in LIS doing the
+;;; minimal number of SET-CDR!s to splice the tail of one run of ins to the
 ;;; beginning of the next.
 
 (define (filter! pred lis)
@@ -1096,7 +1108,7 @@
 
 
 
-;;; Answers share common tail with LIS where possible; 
+;;; Answers share common tail with LIS where possible;
 ;;; the technique is slightly subtle.
 
 (define (partition pred lis)
@@ -1127,10 +1139,10 @@
 ;;; This implementation of PARTITION!
 ;;; - doesn't cons, and uses no stack;
 ;;; - is careful not to do redundant SET-CDR! writes, as writes to memory are
-;;;   usually expensive on modern machines, and can be extremely expensive on 
+;;;   usually expensive on modern machines, and can be extremely expensive on
 ;;;   modern Schemes (e.g., ones that have generational GC's).
 ;;; It just zips down contiguous runs of in and out elts in LIS doing the
-;;; minimal number of SET-CDR!s to splice these runs together into the result 
+;;; minimal number of SET-CDR!s to splice these runs together into the result
 ;;; lists.
 
 (define (partition! pred lis)
@@ -1192,7 +1204,7 @@
 ;;; ---------------------------------------------------------------------------
 ;;; remove pred lis		Delete by general predicate
 ;;; delete x lis [=]		Delete by element comparison
-;;;					     
+;;;
 ;;; find pred lis		Search by general predicate
 ;;; find-tail pred lis		Search by general predicate
 ;;; member x lis [=]		Search by element comparison
@@ -1200,18 +1212,15 @@
 ;;; assoc key lis [=]		Search alist by key comparison
 ;;; alist-delete key alist [=]	Alist-delete by key comparison
 
-(define (delete x lis . maybe-=) 
-  (let ((= (:optional maybe-= equal?)))
-    (filter (lambda (y) (not (= x y))) lis)))
+(define (delete x lis #!optional (= equal?))
+  (filter (lambda (y) (not (= x y))) lis))
 
-(define (delete! x lis . maybe-=)
-  (let ((= (:optional maybe-= equal?)))
-    (filter! (lambda (y) (not (= x y))) lis)))
+(define (delete! x lis  #!optional (= equal?))
+  (filter! (lambda (y) (not (= x y))) lis))
 
 ;;; Extended from R4RS to take an optional comparison argument.
-(define (member x lis . maybe-=)
-  (let ((= (:optional maybe-= equal?)))
-    (find-tail (lambda (y) (= x y)) lis)))
+(define (member x lis #!optional (= equal?))
+  (find-tail (lambda (y) (= x y)) lis))
 
 ;;; R4RS, hence we don't bother to define.
 ;;; The MEMBER and then FIND-TAIL call should definitely
@@ -1225,38 +1234,35 @@
 ;;; delete-duplicates delete-duplicates!
 ;;;
 ;;; Beware -- these are N^2 algorithms. To efficiently remove duplicates
-;;; in long lists, sort the list to bring duplicates together, then use a 
+;;; in long lists, sort the list to bring duplicates together, then use a
 ;;; linear-time algorithm to kill the dups. Or use an algorithm based on
 ;;; element-marking. The former gives you O(n lg n), the latter is linear.
 
-(define (delete-duplicates lis . maybe-=)
-  (let ((elt= (:optional maybe-= equal?)))
-    (check-arg procedure? elt= delete-duplicates)
-    (let recur ((lis lis))
-      (if (null-list? lis) lis
-	  (let* ((x (car lis))
-		 (tail (cdr lis))
-		 (new-tail (recur (delete x tail elt=))))
-	    (if (eq? tail new-tail) lis (cons x new-tail)))))))
+(define (delete-duplicates lis #!optional (= equal?))
+  (check-arg procedure? = delete-duplicates)
+  (let recur ((lis lis))
+    (if (null-list? lis) lis
+	(let* ((x (car lis))
+	       (tail (cdr lis))
+	       (new-tail (recur (delete x tail =))))
+	  (if (eq? tail new-tail) lis (cons x new-tail))))))
 
-(define (delete-duplicates! lis maybe-=)
-  (let ((elt= (:optional maybe-= equal?)))
-    (check-arg procedure? elt= delete-duplicates!)
-    (let recur ((lis lis))
-      (if (null-list? lis) lis
-	  (let* ((x (car lis))
-		 (tail (cdr lis))
-		 (new-tail (recur (delete! x tail elt=))))
-	    (if (eq? tail new-tail) lis (cons x new-tail)))))))
+(define (delete-duplicates! lis #!optional (= equal?))
+  (check-arg procedure? = delete-duplicates!)
+  (let recur ((lis lis))
+    (if (null-list? lis) lis
+	(let* ((x (car lis))
+	       (tail (cdr lis))
+	       (new-tail (recur (delete! x tail =))))
+	  (if (eq? tail new-tail) lis (cons x new-tail))))))
 
 
 ;;; alist stuff
 ;;;;;;;;;;;;;;;
 
 ;;; Extended from R4RS to take an optional comparison argument.
-(define (assoc x lis . maybe-=)
-  (let ((= (:optional maybe-= equal?)))
-    (find (lambda (entry) (= x (car entry))) lis)))
+(define (assoc x lis #!optional (= equal?))
+  (find (lambda (entry) (= x (car entry))) lis))
 
 (define (alist-cons key datum alist) (cons (cons key datum) alist))
 
@@ -1264,13 +1270,11 @@
   (map (lambda (elt) (cons (car elt) (cdr elt)))
        alist))
 
-(define (alist-delete key alist . maybe-=)
-  (let ((= (:optional maybe-= equal?)))
-    (filter (lambda (elt) (not (= key (car elt)))) alist)))
+(define (alist-delete key alist #!optional (= equal?))
+  (filter (lambda (elt) (not (= key (car elt)))) alist))
 
-(define (alist-delete! key alist . maybe-=)
-  (let ((= (:optional maybe-= equal?)))
-    (filter! (lambda (elt) (not (= key (car elt)))) alist)))
+(define (alist-delete! key alist #!optional (= equal?))
+  (filter! (lambda (elt) (not (= key (car elt)))) alist))
 
 
 ;;; find find-tail take-while drop-while span break any every list-index
@@ -1334,7 +1338,7 @@
 				(begin (set-cdr! prev '())
 				       rest)))))))
 	(values lis suffix))))
-  
+
 
 (define (break  pred lis) (span  (lambda (x) (not (pred x))) lis))
 (define (break! pred lis) (span! (lambda (x) (not (pred x))) lis))
@@ -1407,7 +1411,7 @@
 
 ;R4RS, so not defined here.
 ;(define (reverse lis) (fold cons '() lis))
-				      
+
 ;(define (reverse! lis)
 ;  (pair-fold (lambda (pair tail) (set-cdr! pair tail) pair) '() lis))
 
@@ -1431,7 +1435,8 @@
 ;;;   FILTER in this source code share longest common tails between args
 ;;;   and results to get structure sharing in the lset procedures.
 
-(define (%lset2<= = lis1 lis2) (every (lambda (x) (member x lis2 =)) lis1))
+(define (%lset2<= = lis1 lis2)
+  (every (lambda (x) (member x lis2 =)) lis1))
 
 (define (lset<= = . lists)
   (check-arg procedure? = lset<=)
@@ -1451,7 +1456,8 @@
 	    (let ((s2   (car rest))
 		  (rest (cdr rest)))
 	      (and (or (eq? s1 s2)	; Fast path
-		       (and (%lset2<= = s1 s2) (%lset2<= = s2 s1))) ; Real test
+		       (and (%lset2<= = s1 s2)
+			    (%lset2<= = s2 s1))) ; Real test
 		   (lp s2 rest)))))))
 
 
@@ -1592,3 +1598,5 @@
 			    (not (any (lambda (lis) (member elt lis =))
 				      lists)))
 			  lis1))))
+
+(declare (generic) (safe))
