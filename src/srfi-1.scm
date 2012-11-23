@@ -165,9 +165,6 @@
 ;;;   A few uses of the LET-OPTIONAL and :OPTIONAL macros for parsing
 ;;;     optional arguments.
 
-(define-macro (receive args expr . body)
-  `(call-with-values (lambda () ,expr) (lambda ,args ,@body)))
-
 (define-macro (check-arg pred val caller)
   `(let ((pred ,pred)
 	 (val ,val)
