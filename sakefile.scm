@@ -1,30 +1,31 @@
-(define modules '(srfi-1
-                  ;srfi-2
-                  ;srfi-5
-                  ;srfi-11
-                  ;srfi-13
-                  srfi-14
-                  ;srfi-16
-                  ;srfi-19
-                  srfi-25
-                  ;srfi-26
-                  srfi-28
-                  ;srfi-31
-                  ;srfi-34
-                  ;srfi-35
-                  srfi-37
-                  srfi-38
-                  ;srfi-40
-                  ;srfi-42
-                  ;srfi-43
-                  ;srfi-45
-                  srfi-47
-                  ;srfi-51
-                  ;srfi-54
-                  ;srfi-61
-                  ;srfi-64
-                  srfi-69
-                  srfi-95))
+;; (define modules '(srfi-1
+;;                   ;srfi-2
+;;                   ;srfi-5
+;;                   ;srfi-11
+;;                   ;srfi-13
+;;                   srfi-14
+;;                   ;srfi-16
+;;                   ;srfi-19
+;;                   srfi-25
+;;                   ;srfi-26
+;;                   srfi-28
+;;                   ;srfi-31
+;;                   ;srfi-34
+;;                   ;srfi-35
+;;                   srfi-37
+;;                   srfi-38
+;;                   ;srfi-40
+;;                   ;srfi-42
+;;                   ;srfi-43
+;;                   ;srfi-45
+;;                   srfi-47
+;;                   ;srfi-51
+;;                   ;srfi-54
+;;                   ;srfi-61
+;;                   ;srfi-64
+;;                   srfi-69
+;;                   srfi-95))
+(define modules '(srfi-64))
 
 (define-task clean ()
   (sake:default-clean))
