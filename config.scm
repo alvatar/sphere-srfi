@@ -1,6 +1,4 @@
 (sphere: "srfi")
-(paths:
-  (sake: "/data/projects/scheme-sake"))
 (dependencies:
  (srfi-64
   (include
